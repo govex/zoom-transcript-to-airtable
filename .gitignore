@@ -1,0 +1,13 @@
+# Credentials — never commit these
+.env
+
+# Machine-specific state
+.processed.json
+
+# Whisper model cache and output files
+audio*.txt
+*.pyc
+__pycache__/
+
+# macOS
+.DS_Store
