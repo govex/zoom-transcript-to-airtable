@@ -17,7 +17,6 @@ Expected Zoom folder name format: "YYYY-MM-DD HH.MM.SS Meeting Title"
 
 import os
 import re
-import json
 import sys
 from faster_whisper import WhisperModel
 import requests
@@ -45,7 +44,11 @@ SELECT_EVENT_FIELD  = "Select Event"         # Linked record back to MEETINGS_TA
 WHISPER_MODEL       = "medium"
 
 ZOOM_DIR            = Path.home() / "Documents" / "Zoom"
-PROCESSED_LOG       = Path(__file__).parent / ".processed.json"
+
+# Marker file written into each Zoom recording folder after successful upload.
+# Its presence means the folder has been processed — no separate log file needed.
+# It also signals to the team that it is safe to delete the recording folder.
+MARKER_FILE         = "transcript_uploaded.txt"
 
 # Extra buffer before/after the scheduled meeting window to catch sessions that
 # start slightly early or run over before a restart.
@@ -396,16 +399,24 @@ def find_existing_report(meeting_record_id):
             return record
     return None
 
-# ─── Processed log ────────────────────────────────────────────────────────────
+# ─── Marker file ─────────────────────────────────────────────────────────────
 
-def load_processed():
-    if PROCESSED_LOG.exists():
-        return set(json.loads(PROCESSED_LOG.read_text()))
-    return set()
+def is_processed(folder):
+    """Return True if this recording folder has already been uploaded."""
+    return (folder / MARKER_FILE).exists()
 
-def mark_processed(folder_name, processed):
-    processed.add(folder_name)
-    PROCESSED_LOG.write_text(json.dumps(sorted(processed), indent=2))
+def mark_processed(folder):
+    """
+    Write a marker file into the recording folder.
+    - Prevents reprocessing on future runs
+    - Signals to the team that this folder is safe to delete
+    """
+    from datetime import datetime as _dt
+    marker = folder / MARKER_FILE
+    marker.write_text(
+        f"Transcript uploaded to Airtable on {_dt.now().strftime('%Y-%m-%d at %H:%M')}.\n"
+        f"This folder can be deleted.\n"
+    )
 
 # ─── Core: process one meeting group ─────────────────────────────────────────
 
@@ -503,12 +514,10 @@ def main():
         print("❌  AIRTABLE_TOKEN not set — check your .env file.")
         sys.exit(1)
 
-    processed = load_processed()
-
-    # Collect unprocessed Zoom folders
+    # Collect folders that haven't been uploaded yet (no marker file inside)
     all_folders = sorted(
         [f for f in ZOOM_DIR.iterdir()
-         if f.is_dir() and not f.name.startswith(".") and f.name not in processed],
+         if f.is_dir() and not f.name.startswith(".") and not is_processed(f)],
         key=lambda f: f.name
     )
 
@@ -528,7 +537,7 @@ def main():
             success = process_group(sessions, title)
             if success:
                 for _, folder in sessions:
-                    mark_processed(folder.name, processed)
+                    mark_processed(folder)
                 print("  ✅  Done\n")
             else:
                 print("  ⏭   Skipped\n")

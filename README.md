@@ -27,16 +27,38 @@ Each night the script:
 ### Step 1 — Prerequisites
 
 **Mac:**
-```bash
-# Install Homebrew if you don't have it
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
+First, check if Python 3 is installed:
+```bash
+python3 --version
+```
+If you get `command not found`, install it:
+```bash
+# Option A — via Homebrew (recommended)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+brew install python
+
+# Option B — direct download
+# Go to https://www.python.org/downloads/ and install Python 3.9 or later
+```
+
+Then install the dependencies:
+```bash
 pip3 install -r requirements.txt
 ```
 
 **Windows:**
-1. Install Python from [python.org/downloads](https://www.python.org/downloads/) — check **"Add Python to PATH"** during install
-2. Open PowerShell and run:
+
+First, check if Python is installed:
+```powershell
+python --version
+```
+If you get an error, install it:
+1. Go to [python.org/downloads](https://www.python.org/downloads/)
+2. Download Python 3.9 or later
+3. Run the installer — **check "Add Python to PATH"** before clicking Install
+
+Then install the dependencies:
 ```powershell
 pip install -r requirements.txt
 ```
@@ -86,6 +108,8 @@ chmod +x setup_mac.sh
 ./setup_mac.sh
 ```
 
+This installs a **launchd agent** (not cron). The key difference: if your laptop is asleep or in clamshell at the scheduled time, launchd will run the job the next time the machine wakes up. Cron would silently skip it.
+
 **Windows** — right-click `setup_windows.ps1` → **Run with PowerShell**
 (or from a PowerShell prompt: `.\setup_windows.ps1`)
 
@@ -110,6 +134,10 @@ python zoom_to_airtable.py
 ```
 
 Logs are written to `zoom_to_airtable.log` in this folder.
+
+After a successful upload, the script writes a `transcript_uploaded.txt` file inside each processed Zoom recording folder. This file means two things:
+- The script will skip that folder on future runs
+- **It is safe to delete that recording folder**
 
 ---
 
