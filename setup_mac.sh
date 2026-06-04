@@ -14,6 +14,7 @@ RUN_HOUR=21   # 9 PM local time
 # ──────────────────────────────────────────────────────────────────────────
 
 if [ ! -f "$SCRIPT_DIR/.env" ]; then
+  # Note: ffmpeg is not required — faster-whisper bundles its own audio libraries.
   echo "❌  No .env file found. Copy .env.example to .env and add your Airtable token first."
   exit 1
 fi

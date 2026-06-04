@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-zoom_to_airtable.py — Zoom local recordings → Whisper → Airtable
+zoom_to_airtable.py — Zoom local recordings → faster-whisper → Airtable
 
 For each meeting found in ~/Documents/Zoom:
   1. Groups recording folders by title + date (handles meetings that end/restart)
   2. Filters sessions to those within the Airtable-scheduled window + 30 min buffer
-  3. Transcribes audio with Whisper (or reads existing VTT if Zoom already made one)
+  3. Transcribes audio with faster-whisper (or reads existing VTT if Zoom made one)
   4. Combines call + chat transcripts, with SESSION headers if multiple sessions
   5. Matches the Airtable meeting record by title + date
   6. Infers event type from the meeting title
@@ -19,7 +19,7 @@ import os
 import re
 import json
 import sys
-import whisper
+from faster_whisper import WhisperModel
 import requests
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -193,22 +193,48 @@ def _fmt_ts(seconds):
     s = int(seconds % 60)
     return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
 
+def _best_device():
+    """
+    Return (device, compute_type) for the fastest available hardware.
+
+    faster-whisper does NOT support MPS/Metal on Apple Silicon — CUDA is the
+    only GPU path. On M2 Mac the CPU path uses Apple's Accelerate framework
+    automatically, so it's still faster than stock openai-whisper on CPU.
+
+    Detection uses ctranslate2 (bundled with faster-whisper — always available).
+    """
+    try:
+        import ctranslate2
+        if ctranslate2.get_cuda_device_count() > 0:
+            return "cuda", "float16"
+    except Exception:
+        pass
+    return "cpu", "int8"
+
+# Module-level model cache — loaded once per script run, reused across sessions
+_whisper_model_cache = None
+
+def _get_model():
+    global _whisper_model_cache
+    if _whisper_model_cache is None:
+        device, compute_type = _best_device()
+        print(f"    Loading faster-whisper ({WHISPER_MODEL}, {device}/{compute_type}) ...")
+        _whisper_model_cache = WhisperModel(WHISPER_MODEL, device=device, compute_type=compute_type)
+    return _whisper_model_cache
+
 def transcribe_audio(audio_path, session_label=""):
     """
-    Transcribe audio with Whisper and return a timestamped transcript.
+    Transcribe audio with faster-whisper and return a timestamped transcript.
     Each segment is formatted as:
         [0:00 → 0:14]  Hello, this is a test...
     """
     prefix = f"    [{session_label}] " if session_label else "    "
-    print(f"{prefix}🎙  Running Whisper ({WHISPER_MODEL}) on {audio_path.name} ...")
-    model = whisper.load_model(WHISPER_MODEL)
-    result = model.transcribe(str(audio_path))
+    print(f"{prefix}🎙  Transcribing {audio_path.name} ...")
+    model = _get_model()
+    segments, _ = model.transcribe(str(audio_path))
     lines = []
-    for seg in result["segments"]:
-        start = _fmt_ts(seg["start"])
-        end   = _fmt_ts(seg["end"])
-        text  = seg["text"].strip()
-        lines.append(f"[{start} → {end}]  {text}")
+    for seg in segments:                      # generator — consumed once
+        lines.append(f"[{_fmt_ts(seg.start)} → {_fmt_ts(seg.end)}]  {seg.text.strip()}")
     return "\n".join(lines)
 
 def build_combined(call_text, chat_text):

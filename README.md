@@ -31,20 +31,19 @@ Each night the script:
 # Install Homebrew if you don't have it
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-# Install ffmpeg and Python dependencies
-brew install ffmpeg
 pip3 install -r requirements.txt
 ```
 
 **Windows:**
 1. Install Python from [python.org/downloads](https://www.python.org/downloads/) — check **"Add Python to PATH"** during install
-2. Download ffmpeg from [ffmpeg.org/download.html](https://ffmpeg.org/download.html), extract it, and add the `bin` folder to your PATH
-3. Open PowerShell and run:
+2. Open PowerShell and run:
 ```powershell
 pip install -r requirements.txt
 ```
 
-> **First run note:** Whisper will automatically download the `medium` model (~1.4 GB) the first time it transcribes. This is a one-time download.
+> **No ffmpeg needed** — faster-whisper bundles its own audio decoding libraries.
+
+> **First run note:** faster-whisper will automatically download the `medium` model (~1.5 GB) the first time it transcribes. This is a one-time download. The script also auto-detects whether a CUDA GPU is available and uses it if so, otherwise falls back to CPU.
 
 ---
 
